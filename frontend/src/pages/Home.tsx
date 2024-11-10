@@ -3,7 +3,7 @@ import NavBar from "../components/NavBar";
 
 const Home = () => {
     return (
-        <section className="flex flex-col h-screen">
+        <section className="flex flex-col h-screen bg-muted" >
             <NavBar/>
             <HomeLayout/>
         </section>

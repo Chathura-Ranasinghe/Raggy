@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Cropper, CropperPreviewRef, CropperRef } from 'react-advanced-cropper';
 import 'react-advanced-cropper/dist/style.css';
+import axios from "axios";
 
 import {
   Form,
@@ -33,9 +34,10 @@ const formSchema = z.object({
 type SubmitFormProps = {
   previewRef: React.RefObject<CropperPreviewRef>;
   setImagePreview: React.Dispatch<React.SetStateAction<string | null>>;
+  setPredictedText: React.Dispatch<React.SetStateAction<string | null>>; // Add setPredictedText prop
 };
 
-const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
+const SubmitForm = ({ previewRef, setImagePreview, setPredictedText }: SubmitFormProps) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,14 +49,42 @@ const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
   const [imagePreview, setLocalImagePreview] = useState<string | null>(null);
   const cropperRef = useRef<CropperRef>(null);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
+  const onSubmit = async () => {
+    if (cropperRef.current) {
+      const cropper = cropperRef.current;
+      const canvas = cropper.getCanvas();
+
+      if (canvas) {
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            const formData = new FormData();
+            formData.append("image", blob, "cropped-image.png");
+
+            try {
+              const response = await axios.post<{ predicted_text: string }>(
+                "http://localhost:5000/predict",
+                formData,
+                {
+                  headers: {
+                    "Content-Type": "multipart/form-data",
+                  },
+                }
+              );
+              setPredictedText(response.data.predicted_text); // Set predictedText with response data
+            } catch (error) {
+              console.error("Error:", error);
+            }
+          }
+        }, "image/png");
+      }
+    }
   };
 
   const onReset = () => {
     form.reset();
     setLocalImagePreview(null);
     setImagePreview(null); // Reset image preview in ResultViewer
+    setPredictedText(null); // Reset predicted text
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -77,9 +107,9 @@ const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
     }
   });
 
-  const onChange = (cropper: CropperRef) => {
-    console.log(cropper.getCoordinates(), cropper.getCanvas());
-  };
+  // const onChange = (cropper: CropperRef) => {
+  //   console.log(cropper.getCoordinates(), cropper.getCanvas());
+  // };
 
   const onUpdate = (cropper: CropperRef) => {
     previewRef.current?.update(cropper);
@@ -99,7 +129,7 @@ const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
                   {!imagePreview ? ( 
                     <div
                       {...getRootProps()}
-                      className={`flex items-center justify-center border-2 border-dashed min-h-96 min-w-96 cursor-pointer ${
+                      className={`flex items-center justify-center border-2 border-dashed min-h-96 min-w-96 cursor-pointer bg-green-900 ${
                         isDragActive ? "bg-gray-200" : ""
                       }`}
                     >
@@ -107,7 +137,12 @@ const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
                       {isDragActive ? (
                         <p>Drop the file here...</p>
                       ) : (
-                        <p>Drag & drop a file here, or click to select one</p>
+                        <div className="text-center">
+                          <label className="font-semibold text-base">
+                            Drag & Drop a File Here, Or<br />
+                          <span className="bg-slate-100 text-black px-2 py-0.5 rounded-sm cursor-pointer">Click Here</span>
+                        </label>
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -124,7 +159,7 @@ const SubmitForm = ({ previewRef, setImagePreview }: SubmitFormProps) => {
                           width: 400,
                           height: 100,
                         }}
-                        onChange={onChange}
+                        //onChange={onChange}
                         onUpdate={onUpdate}
                         className="cropper object-cover rounded h-full w-full"
                       />
